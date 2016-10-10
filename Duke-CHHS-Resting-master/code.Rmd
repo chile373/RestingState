@@ -15,7 +15,7 @@ opts_chunk$set(tidy.opts=list(width.cutoff=60),tidy=TRUE)
 First, want to set working directory and bring in data. Header=TRUE let's R know that the first row is composed of variable names.
 
 ```{r}
-dir <- "C:\\Users\\clarkmd\\Documents\\Gfeller\\Duke CHHS project\\RESTING"
+dir <- "/Users/cwh27/Desktop/Data"
 setwd(dir)
 CC <- read.csv("meancluscoeff.csv", header=TRUE)
 LE <- read.csv("meanlocaleff.csv", header=TRUE)

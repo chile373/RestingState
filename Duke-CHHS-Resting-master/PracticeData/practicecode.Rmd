@@ -1,0 +1,86 @@
+---
+title: "NFL/CFB Resting State Data Reduction"
+author: "Connor Hile"
+date: "October 10, 2016"
+output: 
+  html_document: default
+  pdf_document: 
+    highlight: pygments
+---
+
+```{r, echo=FALSE}
+library(knitr)
+opts_chunk$set(tidy.opts=list(width.cutoff=60),tidy=TRUE)
+```
+
+For the first step, we are going to set the working directory to allow data input. You want to make sure header=TRUE in order to tell R that the first row is variable names. 
+
+```{r}
+dir <- "/Users/cwh27/Desktop/PracticeData"
+setwd(dir)
+CC <- read.csv("newcluscoeff.csv", header=TRUE)
+LE <- read.csv("newmeanlocaleff.csv", header=TRUE)
+DG <- read.csv("newmeandeg.csv", header=TRUE)
+ST <- read.csv("newstrength.csv", header=TRUE)
+```
+After this, you will make an ID variable with all 61 IDs (The "1" at the beginning denotes a college player and the "2" denotes an NFL player). Furthermore, you will use "as.character" to tell R that these are character labels and not numerical data. Furthermore, the variable "time" is being added, and this will also be using the as.character function to ensure it is not being treated as numerical data. 
+
+```{r}
+IDs <- as.character(1003, 1015, 1027, 1039, 1040, 1052, 1064, 1076, 1088, 1092, 1104, 1116, 1128, 1132, 1153, 1165, 1508, 1512, 1521, 1533, 1545, 1557, 1569, 1570, 1582, 1610, 1622, 1634, 1646, 1658, 2018, 2022, 2031, 2043, 2067, 2079, 2080, 2107, 2119, 2120, 2132, 2144, 2156, 2168, 2172, 2500, 2512, 2524, 2536, 2548, 2552, 2561, 2573, 2585, 2597, 2613, 2625, 2637, 2649, 2650, 2662 )
+Time <- as.character(c(rep(1,61)))
+```
+
+Now you make the "dflist" which will contain the four datasets of LE, ST, CC, and DG. Then, by using ```lapply```, you are going to apply the ```function ``` to each dflist. This is using a for loop ```without``` actually using a for loop. You'll end up with a list, which is good because we will want to apply more functions to the four data sets. 
+
+```{r}
+dflist <- list(CC,LE, DG, ST)
+dfs <- lapply(dlist, function(d){
+  d$ID<- IDs
+  d$Time <- Time
+  d
+})
+```
+Now you have gone 61 rows by 80 columns to 61 rows and 82 columns. 
+
+For the next part, you will melt the data by using the reshape package, again by doing this in the list. Thus, this will apply it to all 4 dataframes. 
+
+```{r}
+library(reshape)
+dfs_2 <- lapply(dfs, function(d){
+  melt(d, id=c("ID", "Time"))
+})
+```
+
+Now we are back to the 61x80 rows for eahc element of the list, and we also have four variables. For this next step, we will replace the "variable" column with "Threshold" and "Network". This will be similar across all data frames, so we are again going to use the ```lapply``` to apply it across all data frames. This is the first step in creating the coumns *network* and *threshold*, so we will use lapply later. Also, we will want to remove the "variable" column. 
+
+```{r}
+network <- c(rep("Global", 610), rep("Frontal",610), rep("Parietal",610), rep("Temporal",610), rep("Mediotemporal",610), rep("Occipital", 610), rep("Subcortical", 610), rep("Cerebellar", 610))
+threshold <- c(rep(c(1:10),8, each=61))
+dfs_3 <- lapply(dfs_2, function(d){
+  d$Network <- network
+  d$Threshold <- ((threshold-1)/10)
+  d$variable <- NULL
+  d
+})
+```
+For the last step, you are going to rename each of the "value" columns with the name of the metric. The lists are ordered so the order specfied will be retained. We use the NULL at the end to make sure the "value" variables are ignored.
+```{r}
+head(dfs_3[[1]], n=20)
+dfs_3[[1]]$ClusteringCoefficient <- dfs_3[[1]]$value
+dfs_3[[2]]$LocalEfficiency <- dfs_3[[2]]$value
+dfs_3[[3]]$Degree <- dfs_3[[3]]$value
+dfs_3[[4]]$Strength <- dfs_3[[4]]$value
+dfs_3[[1]]$value <- NULL
+dfs_3[[2]]$value <- NULL
+dfs_3[[3]]$value <- NULL
+dfs_3[[4]]$value <- NULL
+```
+For the final step, we will use the ```Reduce``` to merge the different elements of the list. For the last ```melt``` step, you will keep ID, Time, Network, and Threshold as the ID variables and R will melt the remaining variables into "Variables" and "value", and variable will be renamed but value will stay the same. "Mydata" will also be kep, which has the metrics as separate variables. 
+
+```{r}
+mydata<-Reduce(merge, dfs_3)
+longdata <- melt(mydata, id=c("ID", "Time", "Network", "Threshold"))
+longdata$Metric <- longdata$variable
+longdata$variable <- NULL
+```
+
