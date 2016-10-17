@@ -97,6 +97,29 @@ longdata$variable <- NULL
 
 Make sure you understand every step of this code. Also, double check the output after each step and see if I made any mistakes. Especially the steps where we added new variables. Make sure my ordering is correct (like are the subjects in the right order? and the networks and thresholds?).
 
+For the next part, we are going to find the mean and standard deviation of each of the four lists (LE, ST, CC, and DG). To do this, we are going to categorize it by the threshold and network, and then apply a variety of functions to find the mean and SD. 
+
+```{r}
+library(plyr)
+frontsumCC <- ddply(mydata, c("threshold", "network", "time"), summarise, 
+                  #N = length(ClusteringCoefficient),
+                  meanCC = mean(ClusteringCoefficient),
+                  sdCC = sd(ClusteringCoefficient),
+                  #seCC = sd/sqrt(N),
+                  meanDG = mean(Degree),
+                  sdDG = sd(Degree),
+                  #seDG = sd/sqrt(N),
+                  meanLE = mean(LocalEfficiency),
+                  sdLE = sd(LocalEfficiency),
+                  #seLE = sd/sqrt(N),
+                  meanST = mean(Strength),
+                  sdST = sd(Strength),
+                  #seST = sd/sqrt(N)
+                  )
+
+
+```
+
 
 
 
