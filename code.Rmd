@@ -1,0 +1,127 @@
+---
+title: "CHHS Resting State Data Reduction"
+author: "Michael Clark"
+date: "September 27, 2016"
+output:
+  html_document: default
+  pdf_document:
+    highlight: pygments
+---
+
+```{r, echo=FALSE}
+library(knitr)
+opts_chunk$set(tidy.opts=list(width.cutoff=60),tidy=TRUE)
+```
+First, want to set working directory and bring in data. Header=TRUE let's R know that the first row is composed of variable names.
+
+```{r}
+dir <- "/Users/cwh27/Desktop/Data"
+setwd(dir)
+CC <- read.csv("meancluscoeff.csv", header=TRUE)
+LE <- read.csv("meanlocaleff.csv", header=TRUE)
+DG <- read.csv("meandeg.csv", header=TRUE)
+ST <- read.csv("meanstrength.csv", header=TRUE)
+```
+
+Then, make ID variable with all 17 IDs repeated twice (no leading "1_" or "2_"). The ```as.character``` tells R that these are character labels, not numeric data. We also add variable "Time", again, we want R to treat this as a character.
+
+*Try creating Time with and without the ```as.character``` label and print the result and note the difference between the two outputs*
+
+```{r}
+IDs <- as.character(c(12481,	12534,	12536,	12537,	12538,	12539,	12540,	12541,	12546,	12547,	12548,	12550,	12553,	12559,	12808,	12809,	12812, 12481,	12534,	12536,	12537,	12538,	12539,	12540,	12541,	12546,	12547,	12548,	12550,	12553,	12559,	12808,	12809,	12812))
+Time <- as.character(c(rep(1,17), rep(2,17)))
+```
+
+Ok, so now some more complex code. What this does is first make a list called "dflist" containing our four datasets. Then, using ```lapply```, we are going to apply our ```function``` to each element of dflist. This is basically the efficient and painless way of doing a for loop without doing a for loop (according to the internet, for loops are basically Hitler). The result is still going to be a list, which is what we want because we are going to start applying more functions to each of our four data sets. 
+
+```{r}
+dflist <- list(CC, LE, DG, ST)
+dfs <- lapply(dflist, function(d){
+  d$ID <- IDs
+  d$Time<-Time
+  d
+})
+```
+
+Look at this list and see that we've gone from 34 rows by 80 columns to 34 rows and 82 columns. This is good.
+
+Now, we are going to melt the data using the reshape package. Again, we'll do this in the list, so it will apply to all 4 dataframes. 
+
+```{r}
+library(reshape)
+dfs_2<-lapply(dfs, function(d){
+  melt(d, id=c("ID","Time"))
+  })
+```
+
+Look at this output. We now have 4 variables and 34x80 rows for each element of the list. This is exactly what we want, but now we want to replace the "variable" column with two columns: "Threshold" and "Network". These will be the same for all 4 dataframes, so let's stick to using```lapply```. The first step will be to create the columns *network* and *threshold*. Then we lapply them. Also, we'll remove the "variable" column.
+
+```{r}
+network <- c(rep("Global", 340), rep("Frontal",340), rep("Parietal",340), rep("Temporal",340), rep("Mediotemporal",340), rep("Occipital", 340), rep("Subcortical", 340), rep("Cerebellar", 340))
+threshold <- c(rep(c(1:10),8, each=34))
+dfs_3 <- lapply(dfs_2, function(d){
+  d$Network <- network
+  d$Threshold <- ((threshold-1)/10)
+  d$variable <- NULL
+  d
+})
+```
+
+ProTip:You can get out an element in a list by using ```list[[i]]``` where i is the number of the list element you want. ```head``` will output the first n observations, so we don't print out all 2720 rows.
+
+```{r}
+head(dfs_3[[1]], n=20)
+```
+
+This looks good. Now for the last step. We want to rename each of these "value" columns with the name of the metric. Lists are ordered, so the order we specified has been retained.
+
+```{r}
+dfs_3[[1]]$ClusteringCoefficient <- dfs_3[[1]]$value
+dfs_3[[2]]$LocalEfficiency <- dfs_3[[2]]$value
+dfs_3[[3]]$Degree <- dfs_3[[3]]$value
+dfs_3[[4]]$Strength <- dfs_3[[4]]$value
+dfs_3[[1]]$value <- NULL
+dfs_3[[2]]$value <- NULL
+dfs_3[[3]]$value <- NULL
+dfs_3[[4]]$value <- NULL
+```
+
+Ok, we're almost there. Now we are going to use ```Reduce``` to merge the elements of our list. R is smart, so it will see what variables are the same across the different elements. In the last ```melt``` step, we will keep ID, Time, Network, and Threshold as our id variables and let R melt the remaining variables into a "Variable" and "value." We'll rename variable and keep value. We'll also keep "mydata" which has the metrics as separate variables. I think this is probably what we'll use in most of our statistical models, but I'd like to have longdata in case we find this is useful later (I think if we need to make tables, it will come in handy).
+
+```{r}
+mydata<-Reduce(merge, dfs_3)
+longdata <- melt(mydata, id=c("ID", "Time", "Network", "Threshold"))
+longdata$Metric <- longdata$variable
+longdata$variable <- NULL
+```
+
+Make sure you understand every step of this code. Also, double check the output after each step and see if I made any mistakes. Especially the steps where we added new variables. Make sure my ordering is correct (like are the subjects in the right order? and the networks and thresholds?).
+
+For the next part, we are going to find the mean and standard deviation of each of the four lists (LE, ST, CC, and DG). To do this, we are going to categorize it by the threshold and network, and then apply a variety of functions to find the mean and SD. 
+
+```{r}
+library(plyr)
+frontsumCC <- ddply(mydata, c("threshold", "network", "time"), summarise, 
+                  #N = length(ClusteringCoefficient),
+                  meanCC = mean(ClusteringCoefficient),
+                  sdCC = sd(ClusteringCoefficient),
+                  #seCC = sd/sqrt(N),
+                  meanDG = mean(Degree),
+                  sdDG = sd(Degree),
+                  #seDG = sd/sqrt(N),
+                  meanLE = mean(LocalEfficiency),
+                  sdLE = sd(LocalEfficiency),
+                  #seLE = sd/sqrt(N),
+                  meanST = mean(Strength),
+                  sdST = sd(Strength),
+                  #seST = sd/sqrt(N)
+                  )
+
+
+```
+
+
+
+
+
+
